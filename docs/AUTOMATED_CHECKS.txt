@@ -1,0 +1,28 @@
+✔ pure prompt tones retain pitch and octave, including repeated C5 (71.000385ms)
+✔ strong second harmonic does not replace fundamental (65.810942ms)
+✔ sharp keys and 44.1 kHz resampling (118.435747ms)
+✔ quiet recording uses relative gate (13.296364ms)
+✔ silence produces no notes (3.754446ms)
+✔ polyphonic clean C major triad (33.387455ms)
+✔ short tones and time offset (19.873526ms)
+✔ notation positions are musically correct (0.443171ms)
+✔ score renders every event with ledger lines and no time signature (0.577188ms)
+✔ all 61 chromatic pitches C2–C7, clean synthetic single tones (925.707592ms)
+✔ a natural following a sharp carries an explicit natural sign (0.428552ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1354.948579
+
+PASS QA-02 No direct table CRUD
+PASS QA-03 No database transport
+PASS QA-10 No embedded privileged secrets
+PASS QA-12 No config.js in release
+PASS QA-15 HTML version/cache busting
+PASS QA-16 Footer identity and order
+PASS QA-22 Frontend files
+PASS Privacy no remote assets/requests
