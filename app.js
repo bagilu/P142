@@ -1,6 +1,7 @@
-import { frequency } from './dsp.js?v=0.002';
-import { noteName, renderScore } from './notation.js?v=0.002';
-import { PitchEditor, parseProject, exportProject, hasSourceTime, MIN_PITCH, MAX_PITCH, MAX_CHORD } from './editor-state.js?v=0.002';
+import { frequency } from './dsp.js?v=0.003';
+import { noteName, renderScore } from './notation.js?v=0.003';
+import { PitchEditor, parseProject, exportProject, hasSourceTime, MIN_PITCH, MAX_PITCH, MAX_CHORD } from './editor-state.js?v=0.003';
+import { playbackTiming, beatLabel } from './rhythm.js?v=0.003';
 const $ = id => document.getElementById(id);
 const pitchEditor = new PitchEditor();
 let scoreOpened = false, playbackRun = 0;
@@ -132,7 +133,7 @@ $('analyze').onclick=async()=>{
   for(let c=0;c<buffer.numberOfChannels;c++){const ch=buffer.getChannelData(c);let e=0;for(let i=first;i<last;i+=16)e+=ch[i]*ch[i];if(e>bestEnergy){bestEnergy=e;bestChannel=c;}}
   samples.set(buffer.getChannelData(bestChannel).subarray(first,last));
   try {
-    worker=new Worker(new URL('./analysis-worker.js?v=0.002',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./analysis-worker.js?v=0.003',import.meta.url),{type:'module'});
     worker.onmessage=({data})=>{
       if(token!==run)return;
       if(data.type==='progress'){$('progress').value=data.progress;status(`正在分析音高… ${data.progress}%`);}
@@ -158,12 +159,12 @@ function sourceDescription(event){return hasSourceTime(event)?`原音 ${event.st
 function render() {
   syncEditor();
   $('empty').hidden=scoreOpened;$('results').hidden=!scoreOpened;$('count').textContent=scoreOpened?`${events.length} 組音高`:'等待分析';
-  $('play').disabled=!events.length||busy;$('undo').disabled=!pitchEditor.canUndo;$('redo').disabled=!pitchEditor.canRedo;
+  $('play').disabled=!events.length||busy;$('tempo').value=pitchEditor.tempo;$('undo').disabled=!pitchEditor.canUndo;$('redo').disabled=!pitchEditor.canRedo;
   $('insert-before').disabled=selected<0;$('insert-after').textContent=events.length?'＋ 在後新增音組':'＋ 新增第一組音';
   $('document-status').textContent=scoreOpened?`${events.length} 組音高 · 可下載音符資料保存`:'可先分析音檔，也可直接編輯。';
   const width=Math.max(340,Math.floor($('score').parentElement.clientWidth)-12),scroll=$('score').scrollTop;
   if(events.length){
-    $('score').innerHTML=renderScore(events,width,selected,selectedPitch);
+    $('score').innerHTML=renderScore(events,width,selected,selectedPitch,pitchEditor.tempo);
     const all=events.flatMap(e=>e.pitches);$('range-summary').textContent=`${noteName(Math.min(...all))} — ${noteName(Math.max(...all))}`;
   }else{
     $('score').innerHTML='<div class="empty-score-editor"><strong>這張譜目前沒有音符。</strong>按「新增第一組音」，從中央 C 開始編輯。</div>';$('range-summary').textContent='';
@@ -173,7 +174,7 @@ function render() {
   if(selected>=0){
     const event=events[selected],midi=pitchEditor.selectedMidi;
     $('selected-title').textContent=`第 ${selected+1} 組 · 所選 ${noteName(midi)} · ${event.pitches.length} 個音`;
-    $('selected-time').textContent=sourceDescription(event)+(event.edited?' · 已編輯':'');$('pitch-edit').value=midi;
+    $('selected-time').textContent=sourceDescription(event)+(event.edited?' · 已編輯':'');$('pitch-edit').value=midi;$('beats').value=event.beats??'';
     for(const option of $('pitch-edit').options)option.disabled=Number(option.value)!==midi&&event.pitches.includes(Number(option.value));
     for(const [id,shift]of [['down-semitone',-1],['up-semitone',1],['down-octave',-12],['up-octave',12]])$(id).disabled=midi+shift<MIN_PITCH||midi+shift>MAX_PITCH||event.pitches.includes(midi+shift);
     for(const option of $('chord-pitch').options)option.disabled=event.pitches.includes(Number(option.value));
@@ -181,22 +182,22 @@ function render() {
     $('add-chord').disabled=event.pitches.length>=MAX_CHORD||suggestion===null;
     $('chord-hint').textContent=`同組：${event.pitches.map(noteName).join('、')}`;
   }
-  const table=document.createElement('table');table.innerHTML='<thead><tr><th>順序</th><th>音高</th><th>原音時間／來源</th><th>檢視</th></tr></thead>';
+  const table=document.createElement('table');table.innerHTML='<thead><tr><th>順序</th><th>音高</th><th>手動拍數</th><th>原音時間／來源</th><th>檢視</th></tr></thead>';
   const tbody=document.createElement('tbody');events.forEach((event,index)=>{
     const tr=document.createElement('tr');
-    for(const text of [index+1,event.pitches.map(noteName).join(' · '),sourceDescription(event)]){const td=document.createElement('td');td.textContent=text;tr.append(td);}
+    for(const text of [index+1,event.pitches.map(noteName).join(' · '),beatLabel(event.beats),sourceDescription(event)]){const td=document.createElement('td');td.textContent=text;tr.append(td);}
     const td=document.createElement('td'),button=document.createElement('button');button.textContent='原音片段';button.disabled=!canPlaySource(event);button.title=canPlaySource(event)?'播放原音對應片段':'手動音符沒有原音時間；原有音符需先載入同名音檔';button.onclick=()=>playSource(event);td.append(button);tr.append(td);tbody.append(tr);
   });table.append(tbody);$('note-table').replaceChildren(table);updateDownloads();
 }
 async function auditionSelection(){
   const event=pitchEditor.selectedEvent,token=playbackRun;if(!event)return;
-  try{await context();if(token!==playbackRun)return;const when=audioContext.currentTime+.02;event.pitches.forEach(midi=>{sound(midi,when,.6,1/Math.sqrt(event.pitches.length));flash(midi,selected,550);});}catch(e){status(e.message,true);}
+  try{await context();if(token!==playbackRun)return;const when=audioContext.currentTime+.02,timing=playbackTiming(event,pitchEditor.tempo);event.pitches.forEach(midi=>{sound(midi,when,timing.durationSeconds,1/Math.sqrt(event.pitches.length));flash(midi,selected,timing.durationSeconds*1000);});}catch(e){status(e.message,true);}
 }
 async function selectNote(index,pitch,focus=false){
   if(!events[index])return;stopPlayback();pitchEditor.select(index,pitch);render();
   if(focus)$('score').querySelector(`[data-event="${selected}"][data-pitch="${selectedPitch}"]`)?.focus({preventScroll:true});
   const midi=pitchEditor.selectedMidi,token=playbackRun;
-  try{await context();if(token!==playbackRun)return;sound(midi,audioContext.currentTime+.015);flash(midi);}catch(e){status(e.message,true);}
+  try{await context();if(token!==playbackRun)return;const timing=playbackTiming(pitchEditor.selectedEvent,pitchEditor.tempo);sound(midi,audioContext.currentTime+.015,timing.durationSeconds);flash(midi,-1,timing.durationSeconds*1000);}catch(e){status(e.message,true);}
   const key=document.querySelector(`[data-midi="${midi}"]`);if(key){const scroll=$('keyboard').parentElement;scroll.scrollLeft=Math.max(0,key.offsetLeft-scroll.clientWidth/2);}
 }
 function applyEdit(action,message,focus=false){
@@ -211,6 +212,8 @@ $('score').addEventListener('keydown',event=>{
   if(['Enter',' '].includes(event.key)){event.preventDefault();selectNote(index,pitch,true);}
   if(['ArrowUp','ArrowDown','Delete','Backspace'].includes(event.key)){event.preventDefault();pitchEditor.select(index,pitch);applyEdit(()=>['Delete','Backspace'].includes(event.key)?pitchEditor.removeTone():pitchEditor.transpose((event.key==='ArrowUp'?1:-1)*(event.shiftKey?12:1)),'音符已更新，可復原此操作。',true);}
 });
+$('beats').onchange=()=>applyEdit(()=>pitchEditor.setBeats($('beats').value===''?null:Number($('beats').value)),'此音組的手動拍數已更新。');
+$('tempo').onchange=()=>applyEdit(()=>pitchEditor.setTempo(Number($('tempo').value)),'播放速度已更新；未設定拍數的音組維持固定間隔。');
 $('pitch-edit').onchange=()=>applyEdit(()=>pitchEditor.setPitch(Number($('pitch-edit').value)),'音高已調整。');
 for(const [id,shift]of [['down-semitone',-1],['up-semitone',1],['down-octave',-12],['up-octave',12]])$(id).onclick=()=>applyEdit(()=>pitchEditor.transpose(shift),'音高已調整。');
 $('insert-before').onclick=()=>applyEdit(()=>pitchEditor.insert('before'),'已在前方新增一組音，可調整音高。');
@@ -227,7 +230,7 @@ $('import-json').onchange=async()=>{
     if(file.size>2*1024*1024)throw new Error('音符資料檔最多 2 MB。');
     const project=parseProject(await file.text());
     if(busy||!mayReplaceDocument())return;
-    stopPlayback();pitchEditor.load(project.events);scoreOpened=true;analysisMeta=project.metadata;render();
+    stopPlayback();pitchEditor.load(project.events,project.tempo);scoreOpened=true;analysisMeta=project.metadata;render();
     status(`已載入 ${events.length} 組音高。${buffer&&analysisMeta.source===sourceName?'可對照目前原音。':'可選取同名原音檔以恢復原音對照；音檔本身不包含在 JSON 內。'}`);
   }catch(e){status(`無法載入音符資料：${e.message}`,true);}finally{$('import-json').value='';}
 };
@@ -242,10 +245,10 @@ $('play').onclick=async()=>{
   const token=playbackRun;
   const next=index=>{
     if(token!==playbackRun)return;if(index>=events.length){stopPlayback();return;}
-    const event=events[index],when=audioContext.currentTime+.02;
-    event.pitches.forEach(midi=>{sound(midi,when,.52,1/Math.sqrt(event.pitches.length));flash(midi,index,500);});
+    const event=events[index],when=audioContext.currentTime+.02,timing=playbackTiming(event,pitchEditor.tempo);
+    event.pitches.forEach(midi=>{sound(midi,when,timing.durationSeconds,1/Math.sqrt(event.pitches.length));flash(midi,index,timing.durationSeconds*1000);});
     const element=$('score').querySelector(`[data-event="${index}"]`);if(element){const score=$('score'),r=element.getBoundingClientRect(),s=score.getBoundingClientRect();if(r.bottom>s.bottom||r.top<s.top)score.scrollTop+=r.top-s.top-60;}
-    timers.push(setTimeout(()=>next(index+1),650));
+    timers.push(setTimeout(()=>next(index+1),timing.stepSeconds*1000));
   };next(0);
 };
 $('stop').onclick=stopPlayback;
@@ -253,8 +256,8 @@ $('original').addEventListener('play',()=>{playbackRun++;timers.forEach(clearTim
 async function playSource(ev){if(!canPlaySource(ev)){status('此音符沒有可播放的原音片段，請先載入對應音檔。',true);return;}stopPlayback();try{await context();sourceNode=audioContext.createBufferSource();sourceNode.buffer=buffer;sourceNode.connect(audioContext.destination);const start=Math.max(0,ev.start-.04),end=Math.min(buffer.duration,ev.end+.04);sourceNode.start(0,start,end-start);$('stop').disabled=false;const playingSource=sourceNode;sourceNode.onended=()=>{if(sourceNode===playingSource){sourceNode=null;$('stop').disabled=true;}};}catch(e){status(e.message,true);}}
 function updateDownloads(){
   exportUrls.forEach(URL.revokeObjectURL);
-  const data=exportProject(events,analysisMeta||{});
-  exportUrls=[URL.createObjectURL(new Blob([renderScore(events,1000)],{type:'image/svg+xml;charset=utf-8'})),URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}))];
+  const data=exportProject(events,analysisMeta||{},pitchEditor.tempo);
+  exportUrls=[URL.createObjectURL(new Blob([renderScore(events,1000,-1,-1,pitchEditor.tempo)],{type:'image/svg+xml;charset=utf-8'})),URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}))];
   $('export-svg').href=exportUrls[0];$('export-json').href=exportUrls[1];
 }
 function createKeyboard(){let white=0;for(let midi=36;midi<=96;midi++){

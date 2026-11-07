@@ -1,0 +1,72 @@
+$ node --check app.js
+Exit: 0
+
+$ node --check notation.js
+Exit: 0
+
+$ node --check editor-state.js
+Exit: 0
+
+$ node --check rhythm.js
+Exit: 0
+
+$ node --test tests/dsp.test.mjs tests/editor.test.mjs tests/rhythm.test.mjs
+✔ pure prompt tones retain pitch and octave, including repeated C5 (73.680855ms)
+✔ strong second harmonic does not replace fundamental (60.56274ms)
+✔ sharp keys and 44.1 kHz resampling (101.085027ms)
+✔ quiet recording uses relative gate (9.94837ms)
+✔ silence produces no notes (4.454959ms)
+✔ polyphonic clean C major triad (27.759877ms)
+✔ short tones and time offset (8.934265ms)
+✔ notation positions are musically correct (0.212573ms)
+✔ score renders every event with ledger lines and no time signature (1.1054ms)
+✔ all 61 chromatic pitches C2–C7, clean synthetic single tones (654.191857ms)
+✔ a natural following a sharp carries an explicit natural sign (0.394412ms)
+✔ inserting before and after preserves sequence, selected note, and real source timing (2.127778ms)
+✔ adding chord tones retains one time group and plays as a shared event (0.388333ms)
+✔ duplicate chord additions and colliding pitch changes do not delete notes (0.419789ms)
+✔ semitone and octave edits preserve other chord members and valid range (0.349335ms)
+✔ deleting one chord member preserves its partners and undo restores exact chord (0.236149ms)
+✔ deleting all groups leaves an editable empty score; undo, redo, and reinsertion work (0.207206ms)
+✔ undo and redo retain both pitch edits and selection; new edit discards stale redo (0.374672ms)
+✔ loading invalid data preserves current document and history (0.389624ms)
+✔ legacy V0.001 exports load with source times and chord pitches (0.302266ms)
+✔ edited JSON roundtrip preserves manual null times, sequence, and polyphony (0.512275ms)
+✔ empty saved scores can be reloaded and edited (0.147668ms)
+✔ imports reject wrong format, string pitches, invalid times, duplicates and excess size (2.641456ms)
+✔ source-less manual notes render without fake source seconds (4.124022ms)
+✔ adjacent notes and same-line natural/sharp heads remain individually selectable (0.521019ms)
+✔ history is bounded and invalid operations never create history entries (0.832849ms)
+✔ automatic analysis provides pitch without any inferred beat count (38.435509ms)
+✔ manual beats apply to the whole chord without changing pitches or source timing (0.388102ms)
+✔ beat and tempo edits participate in undo and redo (0.212333ms)
+✔ quarter-note beats convert to correct step lengths at multiple tempos (0.290618ms)
+✔ unassigned groups preserve their old playback interval regardless of tempo (0.227025ms)
+✔ legacy schema 1 and 2 remain unassigned and never acquire beats from seconds (0.222468ms)
+✔ schema 3 roundtrip preserves manual beats, untimed groups, tempo and chord (0.397366ms)
+✔ new manual groups stay unassigned even next to a timed group (0.299712ms)
+✔ unsupported beats and invalid tempos are rejected without corrupting state (0.517032ms)
+✔ same beat value does not create an edit or undo step (0.220956ms)
+✔ notation distinguishes unspecified, quarter, half, whole, flagged and dotted values (1.208412ms)
+✔ a chord shares one stem per staff and one duration, rather than separate rhythmic events (0.25741ms)
+✔ changing tempo never changes source seconds or derives a new beat value (0.195017ms)
+ℹ tests 39
+ℹ suites 0
+ℹ pass 39
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1044.616711
+Exit: 0
+
+$ node tests/check-sds.mjs
+PASS QA-02 No direct table CRUD
+PASS QA-03 No database transport
+PASS QA-10 No embedded privileged secrets
+PASS QA-12 No config.js in release
+PASS QA-15 HTML version/cache busting
+PASS QA-16 Footer identity and order
+PASS QA-22 Frontend files
+PASS Privacy no remote assets/requests
+Exit: 0

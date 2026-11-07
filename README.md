@@ -1,6 +1,6 @@
 # P142 聽音認譜 · Sound to Score
 
-**Web Version V0.002 · SBI-P-SDS v3.6**  
+**Web Version V0.003 · SBI-P-SDS v3.6**  
 慈濟大學｜經營管理學系｜好玩實驗室  
 Tzu Chi University · Department of Business Management · SBI Lab
 
@@ -9,9 +9,9 @@ Tzu Chi University · Department of Business Management · SBI Lab
 
 正式網址：https://bagilu.github.io/P142/
 
-## V0.002：音高五線譜編輯
+## V0.003：音高編輯與手動拍數
 
-右側 02 區可以編輯辨識結果，也可直接「建立空白譜」。本版只記錄音高與音組順序；同組的音同時播放，不推論拍號、拍數、休止符或原曲節奏。
+右側 02 區可以編輯辨識結果，也可直接「建立空白譜」。自動辨識只記錄音高與音組順序，拍數一律為「未設定」。手動編輯可指定拍數；同組和弦共用拍數、同時播放。不自動推論節奏，也不加入拍號、小節或休止符。
 
 1. 匯入 MP3、選取片段、開始分析；或按「建立空白譜」。
 2. 點五線譜上的個別音符，可用音高選單、「升／降半音」、「升／降八度」修改。
@@ -19,8 +19,10 @@ Tzu Chi University · Department of Business Management · SBI Lab
 4. 選擇「和弦音高」後按「加入同時發聲的音」，即可在同一組加入和弦音。一組最多 12 個不同音高。
 5. 「刪除此音」只刪選定音符；若該組只剩一個音，整組隨之刪除。刪到空白後仍可新增。
 6. 「復原／重做」可回溯最近 100 次編輯；選取音符和試聽不列入編輯歷史。
-7. 「下載音符資料」保存 JSON；「載入音符資料」重新載入繼續編輯。支援本版 schema 2 與 V0.001 的 schema 1。
+7. 「下載音符資料」保存 JSON；「載入音符資料」重新載入繼續編輯。使用 schema 3 保存拍數及 BPM，並相容 schema 1、2；舊檔拍數維持未設定，速度預設 120 BPM。
 8. 「下載五線譜」輸出 SVG。SVG 為圖面，不是可重新載入的編輯檔；繼續編輯請使用 JSON。
+
+點選音組後，在「此音組拍數」選擇 ¼、½、1、1½、2、3 或 4 拍（四分音符＝1 拍），也能改回「未設定」。音符外觀會依拍數顯示符幹、符尾、空心音頭或附點。「播放速度」可設為 30–240 BPM，拍數與速度均可復原、重做並保存在 JSON。新增音組一律先不設定拍數。
 
 手動新增的音組沒有原音時間，會標示「手動新增」，不捏造原音秒數。原有音組保留來源時間，加入和弦音表示修改該組的音高內容。JSON 不包含原始音訊；重新載入 JSON 後，可以選取同名 MP3 恢復原音片段對照，編輯結果會保留。檔名核對不等同音訊內容的雜湊驗證。
 
@@ -33,7 +35,7 @@ Tzu Chi University · Department of Business Management · SBI Lab
 - 支援瀏覽器可解碼的 MP3、WAV、M4A、OGG；不支援的編碼會顯示讀檔錯誤。
 - 單音旋律為建議模式；多音辨識為實驗功能，可能漏辨八度音或把泛音當另一個音。手動和弦編輯可精確指定各個音高。
 - 音高範圍 C2–C7；A4=440Hz 十二平均律。黑鍵使用升記號，無調性或等音異名拼寫推論。
-- 「試聽音符」以每組約 0.65 秒的固定間隔播放，同組音一起發聲；「試聽此音組」也會一起播放和弦。使用合成音色，非鋼琴採樣。
+- 「試聽音符」中，已設定拍數的音組依 BPM 播放（每拍 60/BPM 秒）；未設定者維持每組約 0.65 秒間隔。可混合兩者；同組和弦一起發聲。「試聽此音組」也使用該組拍數，使用合成音色，非鋼琴採樣。
 - 本版更新編輯功能，沒有宣稱提高辨識準確率。雜音、殘響、滑音、人聲及重疊音仍需人工核對。
 - 每檔最多 50MB、10 分鐘；每次分析最多 90 秒，可分段。音符 JSON 最多 2MB、1,000 組，每組最多 12 音。
 - 無登入、無資料庫、無追蹤，音訊與音符資料均於瀏覽器本機處理，不傳送至伺服器。
@@ -42,7 +44,7 @@ Tzu Chi University · Department of Business Management · SBI Lab
 
 前端檔案放 repository 根目錄，由 main branch 的 /(root) 發布；保留 `.nojekyll`。不需要 npm 建置、Supabase、API key 或 config.js。部署設定樣本維持 `config-sample.js`。
 
-必要前端檔案：`index.html`、`style.css`、`app.js`、`editor-state.js`、`notation.js`、`dsp.js`、`analysis-worker.js`、`icon.svg`。
+必要前端檔案：`index.html`、`style.css`、`app.js`、`editor-state.js`、`notation.js`、`rhythm.js`、`dsp.js`、`analysis-worker.js`、`icon.svg`。
 
 本機請透過 HTTP server 開啟；直接雙擊 file:// 不支援 ES module Worker。未使用 Service Worker，不宣稱為 PWA。
 
@@ -55,6 +57,6 @@ node --test tests/*.test.mjs
 node tests/check-sds.mjs
 ```
 
-26 項測試包含原音高辨識回歸，以及新增／移調／和弦／刪除／歷史／存取／輸入驗證／密集和弦繪製。本版報告見 `docs/QA_REPORT_V0.002.md`；V0.001 歷史報告仍保留。
+39 項測試涵蓋音高辨識回歸、音符編輯、和弦、歷史、存取、手動拍數、BPM 播放時間、舊檔相容、輸入驗證及音符繪製；8 項 SDS 靜態檢查通過。本版報告見 `docs/QA_REPORT_V0.003.md`，歷史報告保留。
 
 `samples/P142_Test_Chime.mp3` 為自製合成音（CC0），不是捷運原音。預期順序為 C5、E5、G5、E5、C5、C5、C♯4、C4、C3。
