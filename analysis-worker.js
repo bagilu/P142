@@ -1,4 +1,4 @@
-import { analyzeSamples } from './dsp.js?v=0.001';
+import { analyzeSamples } from './dsp.js?v=0.002';
 self.onmessage = ({ data }) => {
   try {
     const result = analyzeSamples(data.samples, data.sampleRate, data.options, progress => self.postMessage({ type: 'progress', progress }));
