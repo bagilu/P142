@@ -1,4 +1,4 @@
-import { noteValue, beatLabel } from './rhythm.js?v=0.003';
+import { noteValue, beatLabel } from './rhythm.js?v=0.004';
 export const names = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 const degree = [0,0,1,1,2,3,3,4,4,5,5,6];
 export const noteName = midi => names[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
@@ -17,6 +17,46 @@ export function layoutChord(pitches, x) {
     heads.push({...position,dx:column});return {midi,pitchIndex,nx:x+column,...position};
   });
 }
+// Each event reserves only its own glyph/label width; a dense chord must not
+// widen the entire score. The final row is never justified to fill the staff.
+export const GROUP_SPACINGS = [40,52,74,104];
+export const DEFAULT_GROUP_SPACING = 52;
+export const normalizeSpacing = value => GROUP_SPACINGS.includes(value) ? value : DEFAULT_GROUP_SPACING;
+const textWidth = text => [...text].reduce((sum,c)=>sum+(c.charCodeAt(0)>255?10:6),0);
+function prepareGroup(event, accidentals, spacing) {
+  const heads=layoutChord(event.pitches,0),placed=[],value=noteValue(event.beats);
+  for(const head of heads){
+    const key=head.sharp?head.midi-1:head.midi;
+    head.natural=!head.sharp&&!!accidentals.get(key);accidentals.set(key,head.sharp);
+    if(head.sharp||head.natural){
+      const col=[0,1,2,3,4,5].find(c=>!placed.some(a=>a.col===c&&Math.abs(a.y-head.y)<27))??6;
+      placed.push({col,y:head.y});head.ax=-23-col*12;
+    }
+  }
+  const labels=[];for(let k=0;k<event.pitches.length;k+=3)labels.push(event.pitches.slice(k,k+3).map(noteName).join(' · '));
+  const beatText=event.beats==null?'未設定':beatLabel(event.beats),labelOffset=Math.max(...heads.map(h=>h.nx))/2;
+  const labelWidth=Math.max(...labels.map(textWidth),textWidth(beatText)*.9,event.manual||event.edited?40:0);
+  let left=Math.min(-15,labelOffset-labelWidth/2,...heads.filter(h=>h.ax!=null).map(h=>h.ax-4));
+  let right=Math.max(...heads.map(h=>h.nx+15),labelOffset+labelWidth/2);
+  if(value.flags)right=Math.max(right,...heads.map(h=>h.nx+30));
+  if(value.dotted)right=Math.max(right,...heads.map(h=>h.nx+20));
+  const cellWidth=Math.max(spacing,right-left+8);
+  return {heads,labels,beatText,labelOffset,value,left,right,cellWidth};
+}
+export function layoutScore(events,width=780,groupSpacing=DEFAULT_GROUP_SPACING){
+  width=Math.max(340,Number.isFinite(width)?width:780);groupSpacing=normalizeSpacing(groupSpacing);
+  const rows=[],accidentals=new Map(),available=width-78;
+  let groups=[],used=0,top=85;
+  const finish=()=>{const labelLines=Math.max(1,...groups.map(g=>g.labels.length)),rowHeight=324+(labelLines-1)*12;rows.push({groups,top,rowHeight});top+=rowHeight;groups=[];used=0;};
+  events.forEach((event,index)=>{
+    const prepared=prepareGroup(event,accidentals,groupSpacing);
+    if(groups.length&&used+prepared.cellWidth>available)finish();
+    const x=62+used+(prepared.cellWidth-(prepared.right-prepared.left))/2-prepared.left;
+    groups.push({...prepared,event,index,x,cellLeft:62+used});used+=prepared.cellWidth;
+  });
+  if(groups.length||!rows.length)finish();
+  return {width,rows,height:top};
+}
 function rhythmicStems(heads,value,index) {
   if(!value.stem)return '';
   let svg='';
@@ -32,28 +72,24 @@ function rhythmicStems(heads,value,index) {
   }
   return svg;
 }
-export function renderScore(events, width = 780, selected = -1, selectedPitch = -1, tempo=120) {
-  width=Math.max(340,width);
-  const maxChord=Math.max(1,...events.map(e=>e.pitches.length)),cell=maxChord>4?145:maxChord>1?100:74;
-  const perRow=Math.max(1,Math.floor((width-90)/cell)),rows=Math.max(1,Math.ceil(events.length/perRow)),rowHeight=maxChord>6?340:300;
-  const accidentals=new Map(),hasRhythm=events.some(e=>e.beats!=null);
+export function renderScore(events, width = 780, selected = -1, selectedPitch = -1, tempo=120, groupSpacing=DEFAULT_GROUP_SPACING) {
+  const layout=layoutScore(events,width,groupSpacing);width=layout.width;
+  const hasRhythm=events.some(e=>e.beats!=null);
   let content=`<rect width="100%" height="100%" fill="#fffefa"/><text x="16" y="18" fill="#718078" font-size="10" font-family="sans-serif">P142 聽音認譜 · ${hasRhythm?'音高與手動拍數譜':'音高順序譜（拍數未設定）'}</text>`;
   if(hasRhythm)content+=`<text x="16" y="33" fill="#718078" font-size="9" font-family="sans-serif">四分音符＝1 拍 · 速度 ${tempo} BPM · 未設定者僅表示音高</text>`;
-  for(let row=0;row<rows;row++){
-    const top=85+row*rowHeight,start=row*perRow,group=events.slice(start,start+perRow),spacing=(width-90)/perRow;
+  for(const row of layout.rows){
+    const {top}=row;
     content+=`<g transform="translate(0,${top})">`;
     for(const y of [50,62,74,86,98,146,158,170,182,194])content+=line(15,y,width-15,y);
     content+=line(15,50,15,194)+treble+bassClef;
-    for(let j=0;j<group.length;j++){
-      const event=group[j],idx=start+j,x=70+j*spacing+spacing*.43;
-      const active=selected===idx,value=noteValue(event.beats),heads=layoutChord(event.pitches,x);
-      content+=`<rect class="group-hit${active?' selected-group':''}" data-group="${idx}" x="${70+j*spacing}" y="-53" width="${spacing-5}" height="314" fill="${active?'#eff3e4':'transparent'}" fill-opacity=".5" rx="7" tabindex="0" role="button" aria-label="選取第 ${idx+1} 組音"/><text x="${x}" y="-40" text-anchor="middle" font-size="9" fill="#7c8970" font-family="sans-serif">${idx+1}</text>`;
-      const placedAccidentals=[];
+    for(const group of row.groups){
+      const {event,index:idx,x,value,labels,beatText,labelOffset}=group;
+      const active=selected===idx,heads=group.heads.map(h=>({...h,nx:x+h.nx}));
+      content+=`<rect class="group-hit${active?' selected-group':''}" data-group="${idx}" x="${group.cellLeft}" y="-53" width="${group.cellWidth-2}" height="314" fill="${active?'#eff3e4':'transparent'}" fill-opacity=".5" rx="7" tabindex="0" role="button" aria-label="選取第 ${idx+1} 組音"/><text x="${x}" y="-40" text-anchor="middle" font-size="9" fill="#7c8970" font-family="sans-serif">${idx+1}</text>`;
       content+=rhythmicStems(heads,value,idx);
       for(const head of heads){
-        const {midi,pitchIndex:p,nx,y,sharp,bass}=head,naturalKey=sharp?midi-1:midi,natural=!sharp&&accidentals.get(naturalKey);
+        const {midi,pitchIndex:p,nx,y,sharp,natural,bass}=head;
         const uncertain=!event.edited&&!event.manual&&((Number.isFinite(event.confidence)&&event.confidence<.68)||Math.abs(event.cents||0)>30);
-        accidentals.set(naturalKey,sharp);
         const ledger=[];
         if(!bass&&y>=110)for(let ly=110;ly<=y;ly+=12)ledger.push(ly);
         if(!bass&&y<=38)for(let ly=38;ly>=y;ly-=12)ledger.push(ly);
@@ -63,8 +99,7 @@ export function renderScore(events, width = 780, selected = -1, selectedPitch = 
         content+=`<g class="note-hit${active&&selectedPitch===p?' selected':''}" data-event="${idx}" data-pitch="${p}" tabindex="0" role="button" aria-label="第 ${idx+1} 組，${noteName(midi)}，點選試聽與修正"><title>${noteName(midi)} · ${time} · ${beatLabel(event.beats)}${uncertain?' · 待確認':''}</title><rect class="note-ring" x="${nx-10}" y="${y-7}" width="20" height="14" rx="5" fill="${active&&selectedPitch===p?'#e5ebc9':'transparent'}" stroke="${active&&selectedPitch===p?'#7c925d':'none'}"/>`;
         for(const ly of ledger)content+=line(nx-15,ly,nx+15,ly);
         if(sharp||natural){
-          const col=[0,1,2,3,4,5].find(c=>!placedAccidentals.some(a=>a.col===c&&Math.abs(a.y-y)<27))??6;
-          placedAccidentals.push({col,y});const ax=x-23-col*12;
+          const ax=x+head.ax;
           if(sharp)content+=`<path d="M${ax} ${y-10}v22m7-24v22m-11-12 15-3m-15 10 15-3" stroke="#243e35" stroke-width="1.5" fill="none"/>`;
           if(natural)content+=`<path d="M${ax} ${y-12}v20l7-3m0-13v20m-7-12 7-3" stroke="#243e35" stroke-width="1.5" fill="none"/>`;
         }
@@ -73,12 +108,11 @@ export function renderScore(events, width = 780, selected = -1, selectedPitch = 
         if(uncertain)content+=`<ellipse cx="${nx}" cy="${y}" rx="13" ry="10" fill="none" stroke="#b86c2a" stroke-width="1" stroke-dasharray="2 2"/>`;
         content+='</g>';
       }
-      const labels=[];for(let k=0;k<event.pitches.length;k+=3)labels.push(event.pitches.slice(k,k+3).map(noteName).join(' · '));
-      labels.forEach((label,k)=>{content+=`<text x="${x+6}" y="${232+k*12}" text-anchor="middle" font-size="10" fill="#53674c" font-family="sans-serif">${label}</text>`;});
-      content+=`<text class="beat-label" x="${x+6}" y="${260+(labels.length-1)*12}" text-anchor="middle" font-size="9" fill="#5f7451">${beatLabel(event.beats)}</text>`;
-      if(event.edited||event.manual)content+=`<text class="manual-label" x="${x+6}" y="${247+(labels.length-1)*12}" text-anchor="middle" font-size="8" fill="#718078" font-family="sans-serif">${event.manual?'手動新增':'已編輯'}</text>`;
+      labels.forEach((label,k)=>{content+=`<text x="${x+labelOffset}" y="${232+k*12}" text-anchor="middle" font-size="10" fill="#53674c" font-family="sans-serif">${label}</text>`;});
+      content+=`<text class="beat-label" x="${x+labelOffset}" y="${260+(labels.length-1)*12}" text-anchor="middle" font-size="9" fill="#5f7451">${beatText}</text>`;
+      if(event.edited||event.manual)content+=`<text class="manual-label" x="${x+labelOffset}" y="${247+(labels.length-1)*12}" text-anchor="middle" font-size="8" fill="#718078" font-family="sans-serif">${event.manual?'手動新增':'已編輯'}</text>`;
     }
     content+='</g>';
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${rows*rowHeight+85}" role="group" aria-label="按聲音順序排列的音高五線譜，拍數僅由使用者手動設定"><style>.note-hit,.group-hit{cursor:pointer}.note-hit:focus .note-ring{stroke:#b38c43;stroke-width:2}</style>${content}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${layout.height}" role="group" aria-label="按聲音順序排列的音高五線譜，拍數僅由使用者手動設定"><style>.note-hit,.group-hit{cursor:pointer}.note-hit:focus .note-ring{stroke:#b38c43;stroke-width:2}</style>${content}</svg>`;
 }

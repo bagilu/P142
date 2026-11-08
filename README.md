@@ -1,6 +1,6 @@
 # P142 聽音認譜 · Sound to Score
 
-**Web Version V0.003 · SBI-P-SDS v3.6**  
+**Web Version V0.004 · SBI-P-SDS v3.6**  
 慈濟大學｜經營管理學系｜好玩實驗室  
 Tzu Chi University · Department of Business Management · SBI Lab
 
@@ -9,7 +9,7 @@ Tzu Chi University · Department of Business Management · SBI Lab
 
 正式網址：https://bagilu.github.io/P142/
 
-## V0.003：音高編輯與手動拍數
+## 音高編輯與手動拍數
 
 右側 02 區可以編輯辨識結果，也可直接「建立空白譜」。自動辨識只記錄音高與音組順序，拍數一律為「未設定」。手動編輯可指定拍數；同組和弦共用拍數、同時播放。不自動推論節奏，也不加入拍號、小節或休止符。
 
@@ -29,6 +29,14 @@ Tzu Chi University · Department of Business Management · SBI Lab
 鍵盤：選取譜面音符後 ↑／↓ 調半音，Shift+↑／↓ 調八度，Delete／Backspace 刪除此音；Ctrl/Cmd+Z 復原，Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做。文字欄位及選單保留原生鍵盤操作。
 
 重新分析、建立空白譜或載入另一份音符資料，會開啟新文件並清除原歷史；有編輯時會先提醒保存。重新整理網頁仍會清除記憶體中的結果，請先下載 JSON。沒有雲端自動儲存。
+
+## V0.004：緊緻排版與音組間距
+
+右側 02 區的「音組間距」可選 **最緊密／緊緻（預設）／標準／寬鬆**，畫面與下載 SVG 同步使用。較緊密的設定可以讓每行容納更多音組；最後一行不再拉開填滿。
+
+逐組計算音頭、和弦、符尾、附點、升降記號與文字需要的空間，複雜和弦只加寬自己的位置。行與行之間保留編號與拍數標籤所需的空間。未指定拍數的譜面標籤簡寫為「未設定」。
+
+間距選擇會儲存在目前瀏覽器的本機偏好（若瀏覽器允許），不列入復原／重做，也不改動音高、拍數、BPM 或來源時間。JSON schema 3 格式不變，間距不寫入 JSON；換瀏覽器時可重新選擇。SVG 是完整圖面，實際列印頁數仍取決於列印軟體、紙張及縮放設定。
 
 ## 音高辨識與播放
 
@@ -57,6 +65,6 @@ node --test tests/*.test.mjs
 node tests/check-sds.mjs
 ```
 
-39 項測試涵蓋音高辨識回歸、音符編輯、和弦、歷史、存取、手動拍數、BPM 播放時間、舊檔相容、輸入驗證及音符繪製；8 項 SDS 靜態檢查通過。本版報告見 `docs/QA_REPORT_V0.003.md`，歷史報告保留。
+46 項測試涵蓋音高辨識回歸、音符編輯、和弦、歷史、存取、手動拍數、BPM 播放時間、舊檔相容、輸入驗證、音符繪製及間距／換行／記號邊界；8 項 SDS 靜態檢查通過。本版報告見 `docs/QA_REPORT_V0.004.md`，歷史報告保留。
 
 `samples/P142_Test_Chime.mp3` 為自製合成音（CC0），不是捷運原音。預期順序為 C5、E5、G5、E5、C5、C5、C♯4、C4、C3。

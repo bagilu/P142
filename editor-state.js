@@ -1,4 +1,4 @@
-import { validateBeats, validateTempo, DEFAULT_TEMPO } from './rhythm.js?v=0.003';
+import { validateBeats, validateTempo, DEFAULT_TEMPO } from './rhythm.js?v=0.004';
 // P142 pitch-sequence editing. Pure state/history, independent of audio and DOM.
 export const MIN_PITCH = 36, MAX_PITCH = 96, MAX_GROUPS = 1000, MAX_CHORD = 12;
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -30,7 +30,7 @@ export function parseProject(input) {
 }
 export function exportProject(events, metadata={},tempo=DEFAULT_TEMPO) {
   validateTempo(tempo);
-  return {schemaVersion:3,project:'P142',webVersion:'V0.003',sds:'3.6',tuning:440,notation:'pitch-sequence-with-manual-beats',playback:'manual-beats-or-untimed-fallback',beatUnit:'quarter',tempo,confidenceType:'heuristic-not-probability',
+  return {schemaVersion:3,project:'P142',webVersion:'V0.004',sds:'3.6',tuning:440,notation:'pitch-sequence-with-manual-beats',playback:'manual-beats-or-untimed-fallback',beatUnit:'quarter',tempo,confidenceType:'heuristic-not-probability',
     source:typeof metadata.source==='string'?metadata.source:'手動編輯音高譜',mode:metadata.mode||'manual',algorithm:metadata.algorithm||null,range:metadata.range||null,
     events:copy(events)};
 }

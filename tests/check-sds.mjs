@@ -9,8 +9,8 @@ const checks={
  'QA-03 No database transport':!/supabase\.rpc\s*\(|fetch\s*\(|XMLHttpRequest|WebSocket/.test(js),
  'QA-10 No embedded privileged secrets':!/service_role|sb_secret_|smtp[_-]?password|eyJ[a-zA-Z0-9_-]{15,}\./.test(js),
  'QA-12 No config.js in release':!existsSync(resolve(root,'config.js'))&&existsSync(resolve(root,'config-sample.js')),
- 'QA-15 HTML version/cache busting':html.includes('V0.003')&&html.includes('style.css?v=0.003')&&html.includes('app.js?v=0.003')&&js.includes('analysis-worker.js?v=0.003')&&js.includes('dsp.js?v=0.003')&&js.includes('notation.js?v=0.003')&&js.includes('editor-state.js?v=0.003')&&js.includes('rhythm.js?v=0.003'),
- 'QA-16 Footer identity and order':/慈濟大學｜經營管理學系｜好玩實驗室[\s\S]*Web Version V0\.003 · SBI-P-SDS v3\.6/.test(html),
+ 'QA-15 HTML version/cache busting':html.includes('V0.004')&&html.includes('style.css?v=0.004')&&html.includes('app.js?v=0.004')&&js.includes('analysis-worker.js?v=0.004')&&js.includes('dsp.js?v=0.004')&&js.includes('notation.js?v=0.004')&&js.includes('editor-state.js?v=0.004')&&js.includes('rhythm.js?v=0.004'),
+ 'QA-16 Footer identity and order':/慈濟大學｜經營管理學系｜好玩實驗室[\s\S]*Web Version V0\.004 · SBI-P-SDS v3\.6/.test(html),
  'QA-22 Frontend files': ['index.html','style.css','app.js','dsp.js','notation.js','analysis-worker.js','icon.svg','config-sample.js','editor-state.js','rhythm.js'].every(f=>existsSync(resolve(root,f))),
  'Privacy no remote assets/requests':!/https?:\/\//.test(html)&&!/(fetch\s*\(|XMLHttpRequest|sendBeacon|WebSocket)/.test(js)
 };

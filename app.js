@@ -1,9 +1,12 @@
-import { frequency } from './dsp.js?v=0.003';
-import { noteName, renderScore } from './notation.js?v=0.003';
-import { PitchEditor, parseProject, exportProject, hasSourceTime, MIN_PITCH, MAX_PITCH, MAX_CHORD } from './editor-state.js?v=0.003';
-import { playbackTiming, beatLabel } from './rhythm.js?v=0.003';
+import { frequency } from './dsp.js?v=0.004';
+import { noteName, renderScore, normalizeSpacing } from './notation.js?v=0.004';
+import { PitchEditor, parseProject, exportProject, hasSourceTime, MIN_PITCH, MAX_PITCH, MAX_CHORD } from './editor-state.js?v=0.004';
+import { playbackTiming, beatLabel } from './rhythm.js?v=0.004';
 const $ = id => document.getElementById(id);
 const pitchEditor = new PitchEditor();
+let groupSpacing=normalizeSpacing(null);
+try{groupSpacing=normalizeSpacing(Number(localStorage.getItem('P142.groupSpacing')));}catch{}
+$('group-spacing').value=groupSpacing;
 let scoreOpened = false, playbackRun = 0;
 let audioContext, buffer, objectUrl, worker, events = [], selected = -1, selectedPitch = 0, run = 0, loadId = 0, busy = false, sourceName = '', analysisMeta = null;
 let oscillators = [], timers = [], sourceNode, fileBusy = false, exportUrls = [];
@@ -133,7 +136,7 @@ $('analyze').onclick=async()=>{
   for(let c=0;c<buffer.numberOfChannels;c++){const ch=buffer.getChannelData(c);let e=0;for(let i=first;i<last;i+=16)e+=ch[i]*ch[i];if(e>bestEnergy){bestEnergy=e;bestChannel=c;}}
   samples.set(buffer.getChannelData(bestChannel).subarray(first,last));
   try {
-    worker=new Worker(new URL('./analysis-worker.js?v=0.003',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./analysis-worker.js?v=0.004',import.meta.url),{type:'module'});
     worker.onmessage=({data})=>{
       if(token!==run)return;
       if(data.type==='progress'){$('progress').value=data.progress;status(`正在分析音高… ${data.progress}%`);}
@@ -164,7 +167,7 @@ function render() {
   $('document-status').textContent=scoreOpened?`${events.length} 組音高 · 可下載音符資料保存`:'可先分析音檔，也可直接編輯。';
   const width=Math.max(340,Math.floor($('score').parentElement.clientWidth)-12),scroll=$('score').scrollTop;
   if(events.length){
-    $('score').innerHTML=renderScore(events,width,selected,selectedPitch,pitchEditor.tempo);
+    $('score').innerHTML=renderScore(events,width,selected,selectedPitch,pitchEditor.tempo,groupSpacing);
     const all=events.flatMap(e=>e.pitches);$('range-summary').textContent=`${noteName(Math.min(...all))} — ${noteName(Math.max(...all))}`;
   }else{
     $('score').innerHTML='<div class="empty-score-editor"><strong>這張譜目前沒有音符。</strong>按「新增第一組音」，從中央 C 開始編輯。</div>';$('range-summary').textContent='';
@@ -212,6 +215,11 @@ $('score').addEventListener('keydown',event=>{
   if(['Enter',' '].includes(event.key)){event.preventDefault();selectNote(index,pitch,true);}
   if(['ArrowUp','ArrowDown','Delete','Backspace'].includes(event.key)){event.preventDefault();pitchEditor.select(index,pitch);applyEdit(()=>['Delete','Backspace'].includes(event.key)?pitchEditor.removeTone():pitchEditor.transpose((event.key==='ArrowUp'?1:-1)*(event.shiftKey?12:1)),'音符已更新，可復原此操作。',true);}
 });
+$('group-spacing').onchange=()=>{
+  stopPlayback();groupSpacing=normalizeSpacing(Number($('group-spacing').value));
+  try{localStorage.setItem('P142.groupSpacing',String(groupSpacing));}catch{}
+  render();status('音組間距已更新；下載五線譜也會採用此間距。');
+};
 $('beats').onchange=()=>applyEdit(()=>pitchEditor.setBeats($('beats').value===''?null:Number($('beats').value)),'此音組的手動拍數已更新。');
 $('tempo').onchange=()=>applyEdit(()=>pitchEditor.setTempo(Number($('tempo').value)),'播放速度已更新；未設定拍數的音組維持固定間隔。');
 $('pitch-edit').onchange=()=>applyEdit(()=>pitchEditor.setPitch(Number($('pitch-edit').value)),'音高已調整。');
@@ -257,7 +265,7 @@ async function playSource(ev){if(!canPlaySource(ev)){status('此音符沒有可�
 function updateDownloads(){
   exportUrls.forEach(URL.revokeObjectURL);
   const data=exportProject(events,analysisMeta||{},pitchEditor.tempo);
-  exportUrls=[URL.createObjectURL(new Blob([renderScore(events,1000,-1,-1,pitchEditor.tempo)],{type:'image/svg+xml;charset=utf-8'})),URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}))];
+  exportUrls=[URL.createObjectURL(new Blob([renderScore(events,1000,-1,-1,pitchEditor.tempo,groupSpacing)],{type:'image/svg+xml;charset=utf-8'})),URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}))];
   $('export-svg').href=exportUrls[0];$('export-json').href=exportUrls[1];
 }
 function createKeyboard(){let white=0;for(let midi=36;midi<=96;midi++){
