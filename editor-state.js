@@ -1,4 +1,5 @@
-import { validateBeats, validateTempo, DEFAULT_TEMPO } from './rhythm.js?v=0.004';
+import { validateBarline } from './barlines.js?v=0.005';
+import { validateBeats, validateTempo, DEFAULT_TEMPO } from './rhythm.js?v=0.005';
 // P142 pitch-sequence editing. Pure state/history, independent of audio and DOM.
 export const MIN_PITCH = 36, MAX_PITCH = 96, MAX_GROUPS = 1000, MAX_CHORD = 12;
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -11,8 +12,8 @@ export function normalizeEvents(input) {
     if (new Set(event.pitches).size !== event.pitches.length) throw new Error(`第 ${index+1} 組有重複音高。`);
     const noTime = event.start == null && event.end == null;
     if (!noTime && (!hasSourceTime(event) || event.end > 86400)) throw new Error(`第 ${index+1} 組原音時間無效。`);
-    const beats=validateBeats(event.beats);
-    return {id:index+1,beats,pitches:event.pitches.slice().sort((a,b)=>a-b),start:noTime?null:event.start,end:noTime?null:event.end,
+    const beats=validateBeats(event.beats),barlineAfter=validateBarline(event.barlineAfter);
+    return {id:index+1,beats,barlineAfter,pitches:event.pitches.slice().sort((a,b)=>a-b),start:noTime?null:event.start,end:noTime?null:event.end,
       confidence:Number.isFinite(event.confidence)?Math.max(0,Math.min(1,event.confidence)):null,
       cents:Number.isFinite(event.cents)?Math.max(-1200,Math.min(1200,event.cents)):null,
       edited:event.edited===true,manual:event.manual===true||noTime};
@@ -20,9 +21,9 @@ export function normalizeEvents(input) {
 }
 export function parseProject(input) {
   const data = typeof input === 'string' ? JSON.parse(input) : input;
-  if (!data || typeof data !== 'object' || data.project !== 'P142' || ![1,2,3].includes(data.schemaVersion)) throw new Error('請選擇 P142 匯出的音符資料 JSON（版本 1、2 或 3）。');
-  const events = normalizeEvents(data.schemaVersion===3?data.events:Array.isArray(data.events)?data.events.map(e=>({...e,beats:null})):data.events);
-  const tempo=data.schemaVersion===3?validateTempo(data.tempo??DEFAULT_TEMPO):DEFAULT_TEMPO;
+  if (!data || typeof data !== 'object' || data.project !== 'P142' || ![1,2,3,4].includes(data.schemaVersion)) throw new Error('請選擇 P142 匯出的音符資料 JSON（版本 1、2、3 或 4）。');
+  const events = normalizeEvents(Array.isArray(data.events)?data.events.map(e=>({...e,beats:data.schemaVersion>=3?e.beats:null,barlineAfter:data.schemaVersion>=4?e.barlineAfter:null})):data.events);
+  const tempo=data.schemaVersion>=3?validateTempo(data.tempo??DEFAULT_TEMPO):DEFAULT_TEMPO;
   const metadata = {source:typeof data.source==='string'?data.source.slice(0,300):'載入的音高譜',origin:'imported',mode:['melody','poly','manual'].includes(data.mode)?data.mode:'manual'};
   if(typeof data.algorithm==='string')metadata.algorithm=data.algorithm.slice(0,100);
   if(data.range && Number.isFinite(data.range.start) && Number.isFinite(data.range.end) && data.range.start>=0 && data.range.end>data.range.start)metadata.range={start:data.range.start,end:data.range.end};
@@ -30,7 +31,7 @@ export function parseProject(input) {
 }
 export function exportProject(events, metadata={},tempo=DEFAULT_TEMPO) {
   validateTempo(tempo);
-  return {schemaVersion:3,project:'P142',webVersion:'V0.004',sds:'3.6',tuning:440,notation:'pitch-sequence-with-manual-beats',playback:'manual-beats-or-untimed-fallback',beatUnit:'quarter',tempo,confidenceType:'heuristic-not-probability',
+  return {schemaVersion:4,project:'P142',webVersion:'V0.005',sds:'3.6',tuning:440,notation:'pitch-sequence-with-manual-beats-and-barlines',playback:'manual-beats-or-untimed-fallback',beatUnit:'quarter',tempo,confidenceType:'heuristic-not-probability',
     source:typeof metadata.source==='string'?metadata.source:'手動編輯音高譜',mode:metadata.mode||'manual',algorithm:metadata.algorithm||null,range:metadata.range||null,
     events:copy(events)};
 }
@@ -60,6 +61,20 @@ export class PitchEditor {
     if(this.events[index].beats===beats)return false;
     const next=copy(this.state);next.events[index].beats=beats;next.events[index].edited=true;return this.commit(next);
   }
+  setBarline(type) {
+    type=validateBarline(type);const index=this.selectedIndex;
+    if(index<0)throw new Error('請先選取小節線前面的音組。');
+    if(this.events[index].barlineAfter===type)return false;
+    const next=copy(this.state);next.events[index].barlineAfter=type;return this.commit(next);
+  }
+  moveBarline(direction) {
+    const index=this.selectedIndex,target=index+direction;
+    if(![-1,1].includes(direction)||index<0||!this.selectedEvent.barlineAfter)throw new Error('請先選取已有小節線的音組。');
+    if(target<0||target>=this.events.length)throw new Error('小節線不能移到第一組之前或最後一組之後的空白位置。');
+    if(this.events[target].barlineAfter)throw new Error('目標位置已有小節線，請先移除或修改該線。');
+    const next=copy(this.state);next.events[target].barlineAfter=next.events[index].barlineAfter;next.events[index].barlineAfter=null;
+    next.selectedId=next.events[target].id;next.selectedMidi=next.events[target].pitches[0];return this.commit(next);
+  }
   setTempo(tempo) {validateTempo(tempo);const next=copy(this.state);next.tempo=tempo;return this.commit(next);}
   setPitch(pitch) {
     if(!inRange(pitch))throw new Error('音高範圍為 C2–C7。');
@@ -77,7 +92,7 @@ export class PitchEditor {
     if(!inRange(pitch))throw new Error('音高範圍為 C2–C7。');
     const next=copy(this.state),index=this.selectedIndex<0?next.events.length:this.selectedIndex+(side==='before'?0:1);
     const id=Math.max(0,...next.events.map(e=>e.id))+1;
-    next.events.splice(index,0,{id,beats:null,pitches:[pitch],start:null,end:null,confidence:null,cents:null,edited:true,manual:true});
+    next.events.splice(index,0,{id,beats:null,barlineAfter:null,pitches:[pitch],start:null,end:null,confidence:null,cents:null,edited:true,manual:true});
     next.selectedId=id;next.selectedMidi=pitch;return this.commit(next);
   }
   addTone(pitch) {

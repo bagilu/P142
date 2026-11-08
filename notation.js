@@ -1,4 +1,5 @@
-import { noteValue, beatLabel } from './rhythm.js?v=0.004';
+import { barlineGap, barlineLabel } from './barlines.js?v=0.005';
+import { noteValue, beatLabel } from './rhythm.js?v=0.005';
 export const names = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 const degree = [0,0,1,1,2,3,3,4,4,5,5,6];
 export const noteName = midi => names[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
@@ -40,20 +41,31 @@ function prepareGroup(event, accidentals, spacing) {
   let right=Math.max(...heads.map(h=>h.nx+15),labelOffset+labelWidth/2);
   if(value.flags)right=Math.max(right,...heads.map(h=>h.nx+30));
   if(value.dotted)right=Math.max(right,...heads.map(h=>h.nx+20));
-  const cellWidth=Math.max(spacing,right-left+8);
-  return {heads,labels,beatText,labelOffset,value,left,right,cellWidth};
+  const noteWidth=Math.max(spacing,right-left+8),barGap=barlineGap(event.barlineAfter),cellWidth=noteWidth+barGap;
+  return {heads,labels,beatText,labelOffset,value,left,right,noteWidth,barGap,cellWidth};
 }
 export function layoutScore(events,width=780,groupSpacing=DEFAULT_GROUP_SPACING){
   width=Math.max(340,Number.isFinite(width)?width:780);groupSpacing=normalizeSpacing(groupSpacing);
   const rows=[],accidentals=new Map(),available=width-78;
   let groups=[],used=0,top=85;
   const finish=()=>{const labelLines=Math.max(1,...groups.map(g=>g.labels.length)),rowHeight=324+(labelLines-1)*12;rows.push({groups,top,rowHeight});top+=rowHeight;groups=[];used=0;};
+  const segments=[];let segment=[];
   events.forEach((event,index)=>{
-    const prepared=prepareGroup(event,accidentals,groupSpacing);
-    if(groups.length&&used+prepared.cellWidth>available)finish();
-    const x=62+used+(prepared.cellWidth-(prepared.right-prepared.left))/2-prepared.left;
-    groups.push({...prepared,event,index,x,cellLeft:62+used});used+=prepared.cellWidth;
+    segment.push({...prepareGroup(event,accidentals,groupSpacing),event,index});
+    if(event.barlineAfter){segments.push(segment);segment=[];accidentals.clear();}
   });
+  if(segment.length)segments.push(segment);
+  for(const measure of segments){
+    const measureWidth=measure.reduce((sum,g)=>sum+g.cellWidth,0);
+    // Prefer a user-marked boundary. Only split a measure when it is wider
+    // than an entire row; this never creates or moves a musical barline.
+    if(groups.length&&used+measureWidth>available)finish();
+    for(const prepared of measure){
+      if(groups.length&&used+prepared.cellWidth>available)finish();
+      const x=62+used+(prepared.noteWidth-(prepared.right-prepared.left))/2-prepared.left;
+      groups.push({...prepared,x,cellLeft:62+used,barX:62+used+prepared.noteWidth+prepared.barGap/2});used+=prepared.cellWidth;
+    }
+  }
   if(groups.length||!rows.length)finish();
   return {width,rows,height:top};
 }
@@ -72,15 +84,23 @@ function rhythmicStems(heads,value,index) {
   }
   return svg;
 }
+function renderBarline(group){
+  const type=group.event.barlineAfter;if(!type)return '';
+  const x=group.barX;
+  let strokes=type==='single'?`M${x} 50V194`:type==='double'?`M${x-2} 50V194M${x+2} 50V194`:`M${x-3} 50V194`;
+  return `<g class="manual-barline" data-barline="${type}" data-group="${group.index}" tabindex="0" role="button" aria-label="第 ${group.index+1} 組後的${barlineLabel(type)}，點選修改"><title>第 ${group.index+1} 組後的${barlineLabel(type)}（手動）</title><rect class="barline-hit" x="${x-6}" y="48" width="12" height="148" fill="transparent"/><path d="${strokes}" stroke="#52634c" stroke-width="1.2" fill="none"/>${type==='final'?`<path d="M${x+2} 50V194" stroke="#52634c" stroke-width="3.6"/>`:''}</g>`;
+}
 export function renderScore(events, width = 780, selected = -1, selectedPitch = -1, tempo=120, groupSpacing=DEFAULT_GROUP_SPACING) {
   const layout=layoutScore(events,width,groupSpacing);width=layout.width;
   const hasRhythm=events.some(e=>e.beats!=null);
   let content=`<rect width="100%" height="100%" fill="#fffefa"/><text x="16" y="18" fill="#718078" font-size="10" font-family="sans-serif">P142 聽音認譜 · ${hasRhythm?'音高與手動拍數譜':'音高順序譜（拍數未設定）'}</text>`;
+  if(!hasRhythm&&events.some(e=>e.barlineAfter))content+='<text x="16" y="33" fill="#718078" font-size="9" font-family="sans-serif">小節線為手動標記 · 未設定拍號</text>';
   if(hasRhythm)content+=`<text x="16" y="33" fill="#718078" font-size="9" font-family="sans-serif">四分音符＝1 拍 · 速度 ${tempo} BPM · 未設定者僅表示音高</text>`;
   for(const row of layout.rows){
-    const {top}=row;
+    const {top}=row,last=row.groups.at(-1);
+    const staffEnd=last?.index===events.length-1&&last?.event.barlineAfter==='final'?last.barX+3.8:width-15;
     content+=`<g transform="translate(0,${top})">`;
-    for(const y of [50,62,74,86,98,146,158,170,182,194])content+=line(15,y,width-15,y);
+    for(const y of [50,62,74,86,98,146,158,170,182,194])content+=line(15,y,staffEnd,y);
     content+=line(15,50,15,194)+treble+bassClef;
     for(const group of row.groups){
       const {event,index:idx,x,value,labels,beatText,labelOffset}=group;
@@ -112,7 +132,8 @@ export function renderScore(events, width = 780, selected = -1, selectedPitch = 
       content+=`<text class="beat-label" x="${x+labelOffset}" y="${260+(labels.length-1)*12}" text-anchor="middle" font-size="9" fill="#5f7451">${beatText}</text>`;
       if(event.edited||event.manual)content+=`<text class="manual-label" x="${x+labelOffset}" y="${247+(labels.length-1)*12}" text-anchor="middle" font-size="8" fill="#718078" font-family="sans-serif">${event.manual?'手動新增':'已編輯'}</text>`;
     }
+    for(const group of row.groups)content+=renderBarline(group);
     content+='</g>';
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${layout.height}" role="group" aria-label="按聲音順序排列的音高五線譜，拍數僅由使用者手動設定"><style>.note-hit,.group-hit{cursor:pointer}.note-hit:focus .note-ring{stroke:#b38c43;stroke-width:2}</style>${content}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${layout.height}" role="group" aria-label="按聲音順序排列的音高五線譜，拍數與小節線僅由使用者手動設定"><style>.note-hit,.group-hit{cursor:pointer}.note-hit:focus .note-ring{stroke:#b38c43;stroke-width:2}</style>${content}</svg>`;
 }

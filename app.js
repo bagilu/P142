@@ -1,7 +1,8 @@
-import { frequency } from './dsp.js?v=0.004';
-import { noteName, renderScore, normalizeSpacing } from './notation.js?v=0.004';
-import { PitchEditor, parseProject, exportProject, hasSourceTime, MIN_PITCH, MAX_PITCH, MAX_CHORD } from './editor-state.js?v=0.004';
-import { playbackTiming, beatLabel } from './rhythm.js?v=0.004';
+import { barlineLabel } from './barlines.js?v=0.005';
+import { frequency } from './dsp.js?v=0.005';
+import { noteName, renderScore, normalizeSpacing } from './notation.js?v=0.005';
+import { PitchEditor, parseProject, exportProject, hasSourceTime, MIN_PITCH, MAX_PITCH, MAX_CHORD } from './editor-state.js?v=0.005';
+import { playbackTiming, beatLabel } from './rhythm.js?v=0.005';
 const $ = id => document.getElementById(id);
 const pitchEditor = new PitchEditor();
 let groupSpacing=normalizeSpacing(null);
@@ -136,7 +137,7 @@ $('analyze').onclick=async()=>{
   for(let c=0;c<buffer.numberOfChannels;c++){const ch=buffer.getChannelData(c);let e=0;for(let i=first;i<last;i+=16)e+=ch[i]*ch[i];if(e>bestEnergy){bestEnergy=e;bestChannel=c;}}
   samples.set(buffer.getChannelData(bestChannel).subarray(first,last));
   try {
-    worker=new Worker(new URL('./analysis-worker.js?v=0.004',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./analysis-worker.js?v=0.005',import.meta.url),{type:'module'});
     worker.onmessage=({data})=>{
       if(token!==run)return;
       if(data.type==='progress'){$('progress').value=data.progress;status(`正在分析音高… ${data.progress}%`);}
@@ -177,7 +178,9 @@ function render() {
   if(selected>=0){
     const event=events[selected],midi=pitchEditor.selectedMidi;
     $('selected-title').textContent=`第 ${selected+1} 組 · 所選 ${noteName(midi)} · ${event.pitches.length} 個音`;
-    $('selected-time').textContent=sourceDescription(event)+(event.edited?' · 已編輯':'');$('pitch-edit').value=midi;$('beats').value=event.beats??'';
+    $('selected-time').textContent=sourceDescription(event)+(event.edited?' · 已編輯':'');$('pitch-edit').value=midi;$('beats').value=event.beats??'';$('barline').value=event.barlineAfter??'';
+    $('barline-left').disabled=!event.barlineAfter||selected===0||!!events[selected-1]?.barlineAfter;
+    $('barline-right').disabled=!event.barlineAfter||selected===events.length-1||!!events[selected+1]?.barlineAfter;
     for(const option of $('pitch-edit').options)option.disabled=Number(option.value)!==midi&&event.pitches.includes(Number(option.value));
     for(const [id,shift]of [['down-semitone',-1],['up-semitone',1],['down-octave',-12],['up-octave',12]])$(id).disabled=midi+shift<MIN_PITCH||midi+shift>MAX_PITCH||event.pitches.includes(midi+shift);
     for(const option of $('chord-pitch').options)option.disabled=event.pitches.includes(Number(option.value));
@@ -185,10 +188,10 @@ function render() {
     $('add-chord').disabled=event.pitches.length>=MAX_CHORD||suggestion===null;
     $('chord-hint').textContent=`同組：${event.pitches.map(noteName).join('、')}`;
   }
-  const table=document.createElement('table');table.innerHTML='<thead><tr><th>順序</th><th>音高</th><th>手動拍數</th><th>原音時間／來源</th><th>檢視</th></tr></thead>';
+  const table=document.createElement('table');table.innerHTML='<thead><tr><th>順序</th><th>音高</th><th>手動拍數</th><th>組後小節線</th><th>原音時間／來源</th><th>檢視</th></tr></thead>';
   const tbody=document.createElement('tbody');events.forEach((event,index)=>{
     const tr=document.createElement('tr');
-    for(const text of [index+1,event.pitches.map(noteName).join(' · '),beatLabel(event.beats),sourceDescription(event)]){const td=document.createElement('td');td.textContent=text;tr.append(td);}
+    for(const text of [index+1,event.pitches.map(noteName).join(' · '),beatLabel(event.beats),barlineLabel(event.barlineAfter),sourceDescription(event)]){const td=document.createElement('td');td.textContent=text;tr.append(td);}
     const td=document.createElement('td'),button=document.createElement('button');button.textContent='原音片段';button.disabled=!canPlaySource(event);button.title=canPlaySource(event)?'播放原音對應片段':'手動音符沒有原音時間；原有音符需先載入同名音檔';button.onclick=()=>playSource(event);td.append(button);tr.append(td);tbody.append(tr);
   });table.append(tbody);$('note-table').replaceChildren(table);updateDownloads();
 }
@@ -210,6 +213,12 @@ function applyEdit(action,message,focus=false){
 }
 $('score').addEventListener('click',event=>{const note=event.target.closest('[data-event]'),group=event.target.closest('[data-group]');if(note)selectNote(Number(note.dataset.event),Number(note.dataset.pitch));else if(group)selectNote(Number(group.dataset.group),0);});
 $('score').addEventListener('keydown',event=>{
+  const bar=event.target.closest('[data-barline]');
+  if(bar){
+    if(['Enter',' '].includes(event.key)){event.preventDefault();selectNote(Number(bar.dataset.group),0,true);}
+    if(['Delete','Backspace'].includes(event.key)){event.preventDefault();pitchEditor.select(Number(bar.dataset.group),0);applyEdit(()=>pitchEditor.setBarline(null),'已移除此小節線，可復原。',true);}
+    return;
+  }
   const note=event.target.closest('[data-event]'),group=event.target.closest('[data-group]');if(!note&&!group)return;
   const index=Number(note?.dataset.event??group.dataset.group),pitch=Number(note?.dataset.pitch??0);
   if(['Enter',' '].includes(event.key)){event.preventDefault();selectNote(index,pitch,true);}
@@ -220,6 +229,9 @@ $('group-spacing').onchange=()=>{
   try{localStorage.setItem('P142.groupSpacing',String(groupSpacing));}catch{}
   render();status('音組間距已更新；下載五線譜也會採用此間距。');
 };
+$('barline').onchange=()=>applyEdit(()=>pitchEditor.setBarline($('barline').value||null),'此音組後的小節線已更新，可復原。');
+$('barline-left').onclick=()=>applyEdit(()=>pitchEditor.moveBarline(-1),'小節線已向前移一組，可復原。');
+$('barline-right').onclick=()=>applyEdit(()=>pitchEditor.moveBarline(1),'小節線已向後移一組，可復原。');
 $('beats').onchange=()=>applyEdit(()=>pitchEditor.setBeats($('beats').value===''?null:Number($('beats').value)),'此音組的手動拍數已更新。');
 $('tempo').onchange=()=>applyEdit(()=>pitchEditor.setTempo(Number($('tempo').value)),'播放速度已更新；未設定拍數的音組維持固定間隔。');
 $('pitch-edit').onchange=()=>applyEdit(()=>pitchEditor.setPitch(Number($('pitch-edit').value)),'音高已調整。');

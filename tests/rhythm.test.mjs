@@ -7,8 +7,8 @@ import {analyzeSamples,frequency} from '../dsp.js';
 const raw=(pitch=60)=>({pitches:[pitch],start:.3,end:1.73,confidence:.9,cents:2});
 test('automatic analysis provides pitch without any inferred beat count',()=>{
  const sr=22050,a=new Float32Array(sr);for(let i=2000;i<18000;i++)a[i]=.5*Math.sin(2*Math.PI*frequency(72)*i/sr);
- const result=analyzeSamples(a,sr);assert.equal(result.events.length,1);assert.equal(result.events[0].beats,undefined);
- const e=new PitchEditor(result.events);assert.equal(e.events[0].beats,null);assert.deepEqual(e.events[0].pitches,[72]);assert.equal(e.events[0].start,result.events[0].start);
+ const result=analyzeSamples(a,sr);assert.equal(result.events.length,1);assert.equal(result.events[0].beats,undefined);assert.equal(result.events[0].barlineAfter,undefined);
+ const e=new PitchEditor(result.events);assert.equal(e.events[0].beats,null);assert.equal(e.events[0].barlineAfter,null);assert.deepEqual(e.events[0].pitches,[72]);assert.equal(e.events[0].start,result.events[0].start);
 });
 test('manual beats apply to the whole chord without changing pitches or source timing',()=>{
  const e=new PitchEditor([raw()]);e.addTone(64);e.addTone(67);e.setBeats(2);
@@ -32,10 +32,10 @@ test('legacy schema 1 and 2 remain unassigned and never acquire beats from secon
   const p=parseProject({project:'P142',schemaVersion,tempo:80,events:[{...raw(),beats:2}]});assert.equal(p.events[0].beats,null);assert.equal(p.tempo,120);
  }
 });
-test('schema 3 roundtrip preserves manual beats, untimed groups, tempo and chord',()=>{
+test('schema 4 roundtrip preserves manual beats, untimed groups, tempo and chord',()=>{
  const e=new PitchEditor([raw(),raw(72)]);e.addTone(64);e.setBeats(1.5);e.setTempo(95);
  const saved=exportProject(e.events,{source:'bell.mp3'},e.tempo),loaded=parseProject(JSON.stringify(saved));
- assert.equal(saved.schemaVersion,3);assert.equal(loaded.tempo,95);assert.deepEqual(loaded.events.map(v=>v.beats),[1.5,null]);assert.deepEqual(loaded.events[0].pitches,[60,64]);assert.equal(loaded.events[0].end,1.73);
+ assert.equal(saved.schemaVersion,4);assert.equal(loaded.tempo,95);assert.deepEqual(loaded.events.map(v=>v.beats),[1.5,null]);assert.deepEqual(loaded.events[0].pitches,[60,64]);assert.equal(loaded.events[0].end,1.73);
  const restored=new PitchEditor(loaded.events,loaded.tempo);assert.equal(restored.tempo,95);
 });
 test('new manual groups stay unassigned even next to a timed group',()=>{

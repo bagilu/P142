@@ -36,3 +36,11 @@
 - 46 項自動測試、8 項 SDS 靜態檢查通過；瀏覽器完成多行排版、偏好保留、編輯歷史及實際 SVG 下載比對。
 - 仍由 main 根目錄部署到 https://bagilu.github.io/P142/ 。
 - 詳細驗證：QA_REPORT_V0.004.md；部署完成狀態以本次提交的 GitHub Pages Actions 為準。
+
+
+## V0.005 · 2026-11-08（臺灣時間）
+
+- 增加手動小節線編輯、移動、SVG 輸出及 JSON schema 4 保存，無自動小節辨識。
+- 60 項自動測試、8 項 SDS 靜態檢查通過；瀏覽器完成分析後手動加線、修改、移動、移除、歷史與下載檢查。
+- 正式網址仍為 https://bagilu.github.io/P142/ ，main 根目錄部署。
+- 詳細驗證：QA_REPORT_V0.005.md；部署完成狀態以本次提交的 GitHub Pages Actions 為準。

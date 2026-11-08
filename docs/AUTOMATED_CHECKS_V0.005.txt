@@ -1,0 +1,96 @@
+$ node --check app.js
+Exit: 0
+
+$ node --check notation.js
+Exit: 0
+
+$ node --check editor-state.js
+Exit: 0
+
+$ node --check barlines.js
+Exit: 0
+
+$ node --check analysis-worker.js
+Exit: 0
+
+$ node --test tests/barlines.test.mjs tests/dsp.test.mjs tests/editor.test.mjs tests/layout.test.mjs tests/rhythm.test.mjs
+✔ manual barline types can be added, modified and removed without assigning beats or changing audio (2.572322ms)
+✔ moving a line follows the selected destination and supports exact undo and redo (0.43307ms)
+✔ invalid moves and occupied destinations never overwrite lines or add history (0.42636ms)
+✔ chord edits and manual beat changes preserve the group boundary (0.409465ms)
+✔ insertions retain the line after its original group and never create another boundary (0.358688ms)
+✔ deleting the last tone removes its attached line and undo restores both (0.218919ms)
+✔ schema 4 roundtrip preserves all manual line types, chords, beats, tempo and source time (0.561893ms)
+✔ older schemas never invent boundaries, and schema 3 retains its manual rhythm (0.220962ms)
+✔ malformed line metadata and no-op removal cannot corrupt a document (1.346952ms)
+✔ wrapping prefers manually marked measure boundaries when a measure fits a row (1.388454ms)
+✔ an oversized measure wraps without inventing barlines or dropping notes (1.361844ms)
+✔ manual lines reserve space after dense chords at every supported width and density (3.904492ms)
+✔ SVG keeps all three line styles spanning both staves and resets accidental scope at a manual boundary (0.364678ms)
+✔ an explicit final line ends the staff only when it is at the end of the document (0.188543ms)
+✔ pure prompt tones retain pitch and octave, including repeated C5 (87.058747ms)
+✔ strong second harmonic does not replace fundamental (57.657294ms)
+✔ sharp keys and 44.1 kHz resampling (109.000529ms)
+✔ quiet recording uses relative gate (10.293243ms)
+✔ silence produces no notes (4.473436ms)
+✔ polyphonic clean C major triad (33.656945ms)
+✔ short tones and time offset (8.191256ms)
+✔ notation positions are musically correct (0.238828ms)
+✔ score renders every event with ledger lines and no time signature (1.291749ms)
+✔ all 61 chromatic pitches C2–C7, clean synthetic single tones (625.771988ms)
+✔ a natural following a sharp carries an explicit natural sign (0.53316ms)
+✔ inserting before and after preserves sequence, selected note, and real source timing (2.974465ms)
+✔ adding chord tones retains one time group and plays as a shared event (0.356495ms)
+✔ duplicate chord additions and colliding pitch changes do not delete notes (0.489725ms)
+✔ semitone and octave edits preserve other chord members and valid range (0.428153ms)
+✔ deleting one chord member preserves its partners and undo restores exact chord (0.392449ms)
+✔ deleting all groups leaves an editable empty score; undo, redo, and reinsertion work (0.280562ms)
+✔ undo and redo retain both pitch edits and selection; new edit discards stale redo (0.43995ms)
+✔ loading invalid data preserves current document and history (0.295624ms)
+✔ legacy V0.001 exports load with source times and chord pitches (0.367702ms)
+✔ edited JSON roundtrip preserves manual null times, sequence, and polyphony (2.378461ms)
+✔ empty saved scores can be reloaded and edited (0.234962ms)
+✔ imports reject wrong format, string pitches, invalid times, duplicates and excess size (0.995064ms)
+✔ source-less manual notes render without fake source seconds (2.054655ms)
+✔ adjacent notes and same-line natural/sharp heads remain individually selectable (0.597658ms)
+✔ history is bounded and invalid operations never create history entries (0.917227ms)
+✔ compact settings reduce row count and SVG height for long melodies (3.921616ms)
+✔ short rows retain their chosen gap rather than stretching to staff width (0.224016ms)
+✔ a dense chord reserves local space without widening neighboring single notes (0.352469ms)
+✔ all supported pitches, dense chords, accidentals and rhythms stay inside each cell (8.139008ms)
+✔ density leaves pitch, manual beats, tempo and source seconds unchanged in SVG (1.9445ms)
+✔ default and invalid density settings have a safe compact fallback, including empty scores (0.462985ms)
+✔ row numbers clear the previous row beat labels, including large chord labels (0.272459ms)
+✔ automatic analysis provides pitch without any inferred beat count (42.634552ms)
+✔ manual beats apply to the whole chord without changing pitches or source timing (0.451518ms)
+✔ beat and tempo edits participate in undo and redo (0.222805ms)
+✔ quarter-note beats convert to correct step lengths at multiple tempos (0.290847ms)
+✔ unassigned groups preserve their old playback interval regardless of tempo (0.191848ms)
+✔ legacy schema 1 and 2 remain unassigned and never acquire beats from seconds (0.265418ms)
+✔ schema 4 roundtrip preserves manual beats, untimed groups, tempo and chord (0.370216ms)
+✔ new manual groups stay unassigned even next to a timed group (0.292479ms)
+✔ unsupported beats and invalid tempos are rejected without corrupting state (0.509445ms)
+✔ same beat value does not create an edit or undo step (0.180581ms)
+✔ notation distinguishes unspecified, quarter, half, whole, flagged and dotted values (2.237168ms)
+✔ a chord shares one stem per staff and one duration, rather than separate rhythmic events (0.449575ms)
+✔ changing tempo never changes source seconds or derives a new beat value (0.161953ms)
+ℹ tests 60
+ℹ suites 0
+ℹ pass 60
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1035.901728
+Exit: 0
+
+$ node tests/check-sds.mjs
+PASS QA-02 No direct table CRUD
+PASS QA-03 No database transport
+PASS QA-10 No embedded privileged secrets
+PASS QA-12 No config.js in release
+PASS QA-15 HTML version/cache busting
+PASS QA-16 Footer identity and order
+PASS QA-22 Frontend files
+PASS Privacy no remote assets/requests
+Exit: 0
